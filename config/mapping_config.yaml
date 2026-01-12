@@ -7,7 +7,9 @@ topics:
   depth_topic: "/robot_1/sensors/front_stereo/depth/depth_registered"
   camera_info_topic: "/robot_1/sensors/front_stereo/left/camera_info"
   pose_topic: "/robot_1/sensors/front_stereo/pose"
+  rgb_topic: "/robot_1/sensors/front_stereo/left/image_rect_color"
   semantic_hotspots_topic: "/semantic_hotspots"
+  semantic_hotspot_mask_topic: "/semantic_hotspot_mask"
   
   # Output topics
   semantic_octomap_markers_topic: "/semantic_octomap_markers"

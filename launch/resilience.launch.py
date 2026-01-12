@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Complete Resilience System Launch File
+VDB Semantic Mapping System Launch File
 
-Launches the full resilience system with three main components:
+Launches the VDB-based semantic mapping system with three main components:
 1. Main resilience node (main.py) - handles drift detection, NARadio processing, and semantic mapping
-2. Depth octomap node (depth_octomap_node.py) - creates semantic voxel maps with reduced max_range
-3. Narration display node (narration_display_node.py) - displays narration and queries VLM
+2. VDB semantic mapping node (vdb_semantic_mapping_node.py) - creates VDB-based semantic voxel maps
+3. Narration display node (vlm_node.py) - displays narration and queries VLM
 
-This launch file provides a complete system for resilience monitoring with semantic mapping.
+This launch file provides a complete system for resilience monitoring with efficient VDB-based semantic mapping.
 """
 
 from launch import LaunchDescription
@@ -74,11 +74,11 @@ def generate_launch_description():
         description='Whether pose is base link'
     )
     
-    # Declare launch arguments for depth octomap node
+    # Declare launch arguments for VDB semantic mapping node
     declare_max_range = DeclareLaunchArgument(
         'max_range',
-        default_value='1.5',
-        description='Maximum depth range for octomap'
+        default_value='5.0',
+        description='Maximum depth range for VDB mapping'
     )
     
     declare_voxel_resolution = DeclareLaunchArgument(
@@ -109,6 +109,36 @@ def generate_launch_description():
         'buffers_directory',
         default_value='/home/navin/ros2_ws/src/buffers',
         description='Directory containing saved buffer data with VLM embeddings'
+    )
+    
+    declare_publish_occupancy_cloud = DeclareLaunchArgument(
+        'publish_occupancy_cloud',
+        default_value='true',
+        description='Whether to publish occupancy point cloud'
+    )
+    
+    declare_publish_semantic_cloud = DeclareLaunchArgument(
+        'publish_semantic_cloud',
+        default_value='true',
+        description='Whether to publish semantic point cloud'
+    )
+    
+    declare_max_cloud_points = DeclareLaunchArgument(
+        'max_cloud_points',
+        default_value='50000',
+        description='Maximum number of points in published clouds'
+    )
+    
+    declare_cloud_publish_rate = DeclareLaunchArgument(
+        'cloud_publish_rate',
+        default_value='1.0',
+        description='Rate for publishing point clouds (Hz)'
+    )
+    
+    declare_stats_publish_rate = DeclareLaunchArgument(
+        'stats_publish_rate',
+        default_value='1.0',
+        description='Rate for publishing statistics (Hz)'
     )
     
     # Declare launch arguments for narration display node
@@ -164,16 +194,17 @@ def generate_launch_description():
         ]
     )
     
-    # Depth Octomap Node (with reduced max_range for semantic mapping)
-    depth_octomap_node = Node(
+    # VDB Semantic Mapping Node
+    vdb_semantic_mapping_node = Node(
         package='resilience',
-        executable='depth_octomap_node.py',
-        name='semantic_depth_octomap_node',
+        executable='frontier_mapping_node.py',
+        name='vdb_semantic_mapping_node',
         output='screen',
         parameters=[{
             'depth_topic': '/robot_1/sensors/front_stereo/depth/depth_registered',
             'camera_info_topic': '/robot_1/sensors/front_stereo/left/camera_info',
             'pose_topic': '/robot_1/sensors/front_stereo/pose',
+            'rgb_topic': '/robot_1/sensors/front_stereo/right/image',
             'map_frame': 'map',
             'voxel_resolution': LaunchConfiguration('voxel_resolution'),
             'max_range': LaunchConfiguration('max_range'),
@@ -181,24 +212,21 @@ def generate_launch_description():
             'probability_hit': 0.7,
             'probability_miss': 0.4,
             'occupancy_threshold': 0.5,
-            'publish_markers': True,
+            'publish_occupancy_cloud': LaunchConfiguration('publish_occupancy_cloud'),
+            'publish_semantic_cloud': LaunchConfiguration('publish_semantic_cloud'),
             'publish_stats': True,
-            'publish_colored_cloud': True,
-            'use_cube_list_markers': True,
-            'max_markers': 30000,
-            'marker_publish_rate': 1.0,
-            'stats_publish_rate': 1.0,
+            'max_cloud_points': LaunchConfiguration('max_cloud_points'),
+            'cloud_publish_rate': LaunchConfiguration('cloud_publish_rate'),
+            'stats_publish_rate': LaunchConfiguration('stats_publish_rate'),
             'pose_is_base_link': LaunchConfiguration('pose_is_base_link'),
             'apply_optical_frame_rotation': True,
             'cam_to_base_rpy_deg': [0.0, 0.0, 0.0],
             'cam_to_base_xyz': [0.0, 0.0, 0.0],
-            'embedding_dim': 1152,
             'enable_semantic_mapping': LaunchConfiguration('enable_semantic_mapping'),
             'semantic_similarity_threshold': LaunchConfiguration('semantic_similarity_threshold'),
             'buffers_directory': LaunchConfiguration('buffers_directory'),
             'bridge_queue_max_size': 100,
             'bridge_queue_process_interval': 0.1,
-            'enable_voxel_mapping': LaunchConfiguration('enable_voxel_mapping'),
             'sync_buffer_seconds': 2.0,
             'inactivity_threshold_seconds': 2.5,
             'semantic_export_directory': LaunchConfiguration('buffers_directory'),
@@ -209,20 +237,17 @@ def generate_launch_description():
         remappings=[
             ('/semantic_hotspots', '/semantic_hotspots'),
             ('/semantic_hotspot_mask', '/semantic_hotspot_mask'),
-            ('/semantic_octomap_markers', '/semantic_octomap_markers'),
-            ('/semantic_octomap_stats', '/semantic_octomap_stats'),
-            ('/semantic_octomap_colored_cloud', '/semantic_octomap_colored_cloud'),
-            ('/semantic_voxels_only', '/semantic_voxels_only'),
-            ('/gp_field_visualization', '/gp_field_visualization'),
-            ('/semantic_costmap', '/semantic_costmap')
+            ('/vdb_occupancy_cloud', '/vdb_occupancy_cloud'),
+            ('/vdb_semantic_cloud', '/vdb_semantic_cloud'),
+            ('/vdb_stats', '/vdb_stats')
         ]
     )
     
     # Narration Display Node
-    narration_display_node = Node(
+    vlm_node = Node(
         package='resilience',
-        executable='narration_display_node.py',
-        name='narration_display_node',
+        executable='vlm_node.py',
+        name='vlm_node',
         output='screen',
         parameters=[{
             'vlm_api_key': LaunchConfiguration('vlm_api_key'),
@@ -234,6 +259,29 @@ def generate_launch_description():
             ('/narration_image', '/narration_image'),
             ('/narration_text', '/narration_text'),
             ('/vlm_answer', '/vlm_answer')
+        ]
+    )
+
+    mppi_control_node = Node(
+        package='resilience',  # Replace with your actual package name
+        executable='primitive_planner_node.py',  # Or entry point name if set in setup.py
+        name='mppi_control_node',
+        output='screen',
+        emulate_tty=True,  # Better color output in terminal
+        parameters=[{
+            # Add any parameters your node needs here.
+            # Based on your code, there aren't explicitly declared ROS parameters yet,
+            # but usually you'd want to expose things like:
+            'control_frequency': 20.0,
+            'grid_topic': '/gp/grid',
+            'pose_topic': '/mavros/local_position/pose',
+            'nominal_path_topic': '/nominal_path'
+        }],
+        remappings=[
+            # Remap internal topic names to system topic names
+            ('/gp/grid', '/gp/local_field'),      # Remap to your GP grid topic
+            ('/nominal_path', '/plan'),           # Remap to your global planner path
+            ('/cmd_vel', '/mavros/setpoint_velocity/cmd_vel_unstamped') # Output command
         ]
     )
     
@@ -249,13 +297,18 @@ def generate_launch_description():
         declare_enable_voxel_mapping,
         declare_pose_is_base_link,
         
-        # Depth octomap node arguments
+        # VDB semantic mapping node arguments
         declare_max_range,
         declare_voxel_resolution,
         declare_min_range,
         declare_enable_semantic_mapping,
         declare_semantic_similarity_threshold,
         declare_buffers_directory,
+        declare_publish_occupancy_cloud,
+        declare_publish_semantic_cloud,
+        declare_max_cloud_points,
+        declare_cloud_publish_rate,
+        declare_stats_publish_rate,
         
         # Narration display node arguments
         declare_vlm_api_key,
@@ -265,6 +318,7 @@ def generate_launch_description():
         
         # Launch all nodes
         main_resilience_node,
-        depth_octomap_node,
-        narration_display_node
+        vdb_semantic_mapping_node,
+        vlm_node,
+        mppi_control_node
     ])
